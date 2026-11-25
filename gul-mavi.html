@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mavi Gül — Evanescence Edition</title>
+<style>
+:root{--bg:#02030a;--fg:#9fb4d6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
+@media (prefers-color-scheme:dark){:root{--bg:#02030a;--fg:#9fb4d6}}
+:root:not([data-theme="light"]){--bg:#02030a}
+:root[data-theme="dark"]{--bg:#02030a}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#h{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);text-align:center;color:var(--fg);font:13px/1.4 Georgia,'Times New Roman',serif;opacity:.55;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="h">Sürükle: döndür. Dokun: yeniden başlat.</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const cv=document.getElementById('c');
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+R.outputEncoding=THREE.sRGBEncoding;
+R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
+R.setClearColor(0x02030a);
+const S=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(38,1,.1,50);cam.position.set(0,0.2,5.6);cam.lookAt(0,0,0);
+S.add(new THREE.HemisphereLight(0x8fb4ff,0x02030f,.5));
+const k=new THREE.DirectionalLight(0xcfe0ff,2.0);k.position.set(2,4,3);S.add(k);
+const rim=new THREE.DirectionalLight(0x2f6bff,2.2);rim.position.set(-3,1,-2);S.add(rim);
+const glow=new THREE.PointLight(0x3a7bff,1.6,3.5);glow.position.set(0,.5,0);S.add(glow);
+
+const smooth=x=>x*x*(3-2*x), cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+function petalGeo(f){
+  const g=new THREE.PlaneGeometry(1,1,16,16),p=g.attributes.position,col=[];
+  const base=new THREE.Color().setHSL(.62,.85,.05+.06*f);
+  const tip=new THREE.Color().setHSL(.6-.02*f,.55-.15*f,.38+.2*f);
+  for(let i=0;i<p.count;i++){
+    const u=p.getX(i)*2,v=p.getY(i)+.5;
+    const d=(v-.62)/(v<.62?.62:.38);
+    const w=.5*Math.sqrt(Math.max(0,1-d*d))*(1+.05*Math.sin(v*14+f*9)*v);
+    const cu=-1.2+2.1*f;let yy=0,zz=0;
+    for(let s=1;s<=8;s++){const sv=v*s/8,a=cu*sv*sv;yy+=Math.cos(a)*v/8;zz+=Math.sin(a)*v/8;}
+    const x=u*w,y=yy;
+    const z=zz-.35*u*u*v*(1-.4*f)+.03*f*v*Math.sin(u*8+v*5)+.25*f*Math.pow(Math.abs(u),3)*v;
+    p.setXYZ(i,x,y,z);
+    const c=base.clone().lerp(tip,Math.pow(v,.85)).multiplyScalar(1-.1*Math.abs(u));
+    col.push(c.r,c.g,c.b);
+  }
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();return g;
+}
+
+const rose=new THREE.Group();rose.position.y=.4;S.add(rose);
+const N=42,petals=[];
+for(let i=0;i<N;i++){
+  const f=i/(N-1),s=.55+.8*Math.pow(f,.8),seed=Math.abs(Math.sin(i*12.9898)*43758.5453)%1;
+  const mat=new THREE.MeshPhysicalMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:.42,clearcoat:.35,clearcoatRoughness:.45,emissive:0x040a22});
+  const mesh=new THREE.Mesh(petalGeo(f),mat);mesh.scale.set(s*1.05,s,s);
+  const piv=new THREE.Group();piv.rotation.y=i*2.39996;piv.add(mesh);rose.add(piv);
+  petals.push({f,piv,mesh,mat,seed,s,
+    rC:.03+.1*f,rO:.05+.36*f,yC:-.02*f,yO:-.18*f,
+    tC:.02+.08*f,tO:.1+1.0*Math.pow(f,1.2)});
+}
+const orb=new THREE.Mesh(new THREE.SphereGeometry(.09,32,32),new THREE.MeshBasicMaterial({color:0xbfe3ff}));
+orb.position.y=.2;rose.add(orb);
+const PN=6000,pp=new Float32Array(PN*3),p0=new Float32Array(PN*3),pc=new Float32Array(PN*3),pd=new Float32Array(PN);
+for(let i=0;i<PN;i++){const a=Math.random()*6.283,r=Math.sqrt(Math.random())*(.3+Math.random()*1.0);
+  p0[i*3]=Math.cos(a)*r;p0[i*3+1]=(Math.random()-.5)*.7;p0[i*3+2]=Math.sin(a)*r;pd[i]=Math.random();
+  const c=new THREE.Color().setHSL(.58+Math.random()*.06,.7,.45+Math.random()*.3);pc.set([c.r,c.g,c.b],i*3);}
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));pg.setAttribute('color',new THREE.BufferAttribute(pc,3));
+const tc=document.createElement('canvas');tc.width=tc.height=64;const tx=tc.getContext('2d'),gr=tx.createRadialGradient(32,32,0,32,32,32);
+gr.addColorStop(0,'#fff');gr.addColorStop(1,'rgba(255,255,255,0)');tx.fillStyle=gr;tx.fillRect(0,0,64,64);
+const pm=new THREE.PointsMaterial({size:.06,map:new THREE.CanvasTexture(tc),vertexColors:true,transparent:true,depthWrite:false});
+const pts=new THREE.Points(pg,pm);pts.position.y=.4;pts.visible=false;S.add(pts);
+const gm=new THREE.MeshPhysicalMaterial({color:0x1c4d36,roughness:.55,clearcoat:.2,side:THREE.DoubleSide,emissive:0x010a0a});
+const stem=new THREE.Group();rose.add(stem);
+stem.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0,-.15,0),new THREE.Vector3(.02,-.9,.05),new THREE.Vector3(-.08,-1.8,.02),new THREE.Vector3(.05,-2.7,-.05),new THREE.Vector3(.15,-3.6,0)]),48,.055,12,false),gm));
+const rc=new THREE.Mesh(new THREE.SphereGeometry(.17,24,16),gm);rc.scale.y=.7;rc.position.y=-.2;stem.add(rc);
+for(let i=0;i<5;i++){const sg=new THREE.ConeGeometry(.07,.65,12);sg.translate(0,.32,0);const sm=new THREE.Mesh(sg,gm);sm.scale.z=.35;sm.rotation.x=2.1;const sp=new THREE.Group();sp.position.y=-.18;sp.rotation.y=i*1.2566;sp.add(sm);stem.add(sp);}
+const lsh=new THREE.Shape();lsh.moveTo(0,0);lsh.bezierCurveTo(.35,.2,.3,.7,0,1.1);lsh.bezierCurveTo(-.3,.7,-.35,.2,0,0);
+[[-1.2,-1.1,.7],[-2.1,1.1,.6]].forEach(([y,rz,s])=>{const lf=new THREE.Mesh(new THREE.ShapeGeometry(lsh,12),gm);lf.position.set(-.04,y,0);lf.rotation.set(.4,0,rz);lf.scale.setScalar(s);stem.add(lf);});
+
+const L=16.5;let t0=performance.now(),ry=0,rx=.5;
+function frame(now){
+  const T=((now-t0)/1000)%L;
+  const g=smooth(cl(T/1.6));
+  let b=cl((T-1)/5.5)*1.4;
+  for(const q of petals){
+    const p=smooth(cl((b-(1-q.f)*.4)/.6));
+    const r=q.rC+(q.rO-q.rC)*p,y=q.yC+(q.yO-q.yC)*p,tilt=q.tC+(q.tO-q.tC)*p;
+    let ox=0,oy=0,oz=0,op=1,tum=0;
+    if(T>11){
+      const dd=Math.max(0,T-11-q.seed*.6);
+      ox=1.4*dd+.35*dd*dd+.3*Math.sin(dd*3+q.seed*9);
+      oy=.5*dd*(.5+q.seed)+.12*Math.sin(dd*4+q.seed*5);
+      oz=.5*Math.cos(dd*2.5+q.seed*7)*dd;
+      tum=dd*(2+q.seed*3);op=1-smooth(cl(dd/1.1));
+    }
+    q.piv.position.set(r*0+ox,y+oy,oz);
+    q.mesh.position.set(0,0,r);
+    q.mesh.rotation.x=tilt+tum;q.piv.rotation.z=tum*.5;
+    q.piv.scale.setScalar(Math.max(.001,g)*(.75+.25*p));
+    q.mat.transparent=op<1;q.mat.opacity=op;q.piv.visible=op>.01;
+  }
+  const so=T>11?1-smooth(cl((T-11)/1.5)):1;gm.transparent=so<1;gm.opacity=so;stem.visible=so>.01;stem.scale.setScalar(Math.max(.001,g));
+  if(T<11)pts.rotation.copy(rose.rotation);
+  if(T>11){const d0=T-11;pts.visible=T<16;
+    for(let i=0;i<PN;i++){const dd=Math.max(0,d0-pd[i]*1.2);
+      pp[i*3]=p0[i*3]+1.6*dd+.5*dd*dd;pp[i*3+1]=p0[i*3+1]+.3*dd*(pd[i]+.3)+.1*Math.sin(dd*5+pd[i]*20);pp[i*3+2]=p0[i*3+2]+.4*Math.sin(dd*3+pd[i]*30)*dd;}
+    pg.attributes.position.needsUpdate=true;pm.opacity=Math.min(cl(d0/.4),1-smooth(cl((d0-2.6)/1.8)));
+  }else pts.visible=false;
+  const oin=smooth(cl((T-11)/1)),oout=1-smooth(cl((T-14.2)/1.3));
+  const os=T<1.6?g*.8:oin*oout*(1+.15*Math.sin(T*6));
+  orb.scale.setScalar(Math.max(.001,os));orb.visible=os>.01;
+  glow.intensity=1.4*g*(T>11?1-smooth(cl((T-11)/2)):1);
+  rose.rotation.y=T*.4+ry;rose.rotation.x=rx*.6+Math.sin(T*.5)*.05;
+  R.render(S,cam);requestAnimationFrame(frame);
+}
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.position.z=w/h<.8?7.4:5.6;cam.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+let dn=false,mv=0,lx=0,ly=0;
+cv.addEventListener('pointerdown',e=>{dn=true;mv=0;lx=e.clientX;ly=e.clientY;});
+addEventListener('pointermove',e=>{if(!dn)return;const dx=e.clientX-lx,dy=e.clientY-ly;mv+=Math.abs(dx)+Math.abs(dy);ry+=dx*.008;rx=cl(rx+dy*.008,-.3,1.3);lx=e.clientX;ly=e.clientY;});
+addEventListener('pointerup',()=>{if(dn&&mv<6)t0=performance.now();dn=false;});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
